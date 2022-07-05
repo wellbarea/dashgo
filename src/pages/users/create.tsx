@@ -4,10 +4,15 @@ import { Input } from "../../components/Form/Input";
 import { Header } from "../../components/Header";
 import { Sidebar } from "../../components/Sidebar";
 
+import { useMutation } from 'react-query';
+
 import { SubmitHandler, useForm } from 'react-hook-form';
 
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { api } from "../../services/api";
+import { queryClient } from "../../services/queryClient";
+import { useRouter } from "next/router";
 
 type CreateUserFormData = {
     name: string;
@@ -20,17 +25,34 @@ const createFormSchema = yup.object().shape({
     name: yup.string().required('Nome Obrigatório'),
     email: yup.string().required('E-mail Obrigatório').email('E-mail Inválido'),
     password: yup.string().required('Senha Obrigatória').min(6, 'No minimo 6 caracteres'),
-    password_confirmation: yup.string().oneOf([yup.ref('password')]),
+    password_confirmation: yup.string().oneOf([yup.ref('password')], 'As senhas precisam ser iguais'),
 })
 
 export default function CreateUser() {
+    const router = useRouter();
+
+    const createUser = useMutation(async (user: CreateUserFormData) => {
+        const response = await api.post('users', {
+            user: {
+                ...user,
+                created_at: new Date()
+            }
+        })
+
+        return response.data.user;
+    }, {
+        onSuccess: () => {
+            queryClient.invalidateQueries('users')
+        }
+    });
+
     const { register, handleSubmit, formState } = useForm({ resolver: yupResolver(createFormSchema) });
     const { errors } = formState;
 
     const handleCreateUser: SubmitHandler<CreateUserFormData> = async (values) => {
-        await new Promise(res => setTimeout(res, 2000));
-        console.log(`values`, values)
-      } 
+        await createUser.mutateAsync(values);
+        router.push('/users');
+    } 
 
     return (
         <Box>
@@ -75,7 +97,7 @@ export default function CreateUser() {
 
                             <Input 
                                 name="password_confirmation" 
-                                type="email" 
+                                type="password" 
                                 label="Confirmação da senha" 
                                 {...register('password_confirmation')} 
                                 error={errors.password_confirmation}/>
